@@ -18,7 +18,8 @@ import {
   CheckSquare, 
   Square, 
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Zap
 } from 'lucide-react';
 
 const STRESS_BUSTER_QUESTIONS = [
@@ -37,36 +38,41 @@ const WellnessCenter: React.FC = () => {
   const [showBuster, setShowBuster] = useState(false);
   const [checkedItems, setCheckedItems] = useState<number[]>([]);
   const [error, setError] = useState(false);
+  const [isLive, setIsLive] = useState(false);
 
-  // Persistence Key
   const STORAGE_KEY = 'preppysphere_daily_wellness';
 
   const fetchTips = async (query?: string, forceRefresh = false) => {
-    // Only use cache if it's not a specific search or a forced refresh
+    // 1. Reset states for fresh attempt
+    setLoading(true);
+    setError(false);
+    setIsLive(false);
+
+    // 2. Cache Check: Only if NO query and NOT forced
     if (!query && !forceRefresh) {
       const cached = localStorage.getItem(STORAGE_KEY);
       if (cached) {
         const { date, data, stressLevel } = JSON.parse(cached);
         const today = new Date().toISOString().split('T')[0];
         
-        // If data is from today, use it
         if (date === today && data.length > 0) {
           setTips(data);
           setStress(stressLevel || 5);
+          setLoading(false);
           return;
         }
       }
     }
 
-    setLoading(true);
-    setError(false);
+    // 3. Live API Call
     try {
       const data = await getWellnessTips(stress, query);
       if (data && data.length > 0) {
         const initializedTips = data.map((t: WellnessTip) => ({ ...t, completed: false }));
         setTips(initializedTips);
+        setIsLive(true);
         
-        // Save to cache if it's the daily general fetch
+        // Only cache daily general tips (not search results)
         if (!query) {
           localStorage.setItem(STORAGE_KEY, JSON.stringify({
             date: new Date().toISOString().split('T')[0],
@@ -75,16 +81,18 @@ const WellnessCenter: React.FC = () => {
           }));
         }
       } else {
-        throw new Error("Empty response");
+        throw new Error("Empty or malformed response from Gemini");
       }
     } catch (err) {
       console.error("Failed to fetch wellness tips:", err);
       setError(true);
-      // Fallback tips if everything fails
+      setIsLive(false);
+      
+      // Fallback presets
       const fallback: WellnessTip[] = [
-        { category: 'mental', tip: 'Take 5 deep breaths, holding for 4 seconds each.', action: 'Focus on your breath for 2 minutes', completed: false },
-        { category: 'physical', tip: 'Stand up and stretch your arms and neck.', action: '1-minute physical break', completed: false },
-        { category: 'social', tip: 'Send a quick "thinking of you" text to a friend.', action: 'Connect with 1 person', completed: false }
+        { category: 'mental', tip: 'Practice the 4-7-8 breathing technique.', action: 'Focus on breath for 3 minutes', completed: false },
+        { category: 'physical', tip: 'Take a brief walk outside for fresh air.', action: '5-minute outdoor break', completed: false },
+        { category: 'social', tip: 'Reach out to a classmate about something non-academic.', action: 'Brief social chat', completed: false }
       ];
       setTips(fallback);
     } finally {
@@ -100,6 +108,8 @@ const WellnessCenter: React.FC = () => {
     e.preventDefault();
     if (searchQuery.trim()) {
       fetchTips(searchQuery, true);
+    } else {
+      fetchTips(); // Reset to default daily tips
     }
   };
 
@@ -108,7 +118,7 @@ const WellnessCenter: React.FC = () => {
     newTips[index].completed = !newTips[index].completed;
     setTips(newTips);
     
-    // Update storage if we aren't in a search result
+    // Update daily cache if applicable
     if (!searchQuery) {
       const cached = localStorage.getItem(STORAGE_KEY);
       if (cached) {
@@ -133,7 +143,7 @@ const WellnessCenter: React.FC = () => {
     const calculatedStress = Math.min(Math.max(Math.round(points), 1), 10);
     setStress(calculatedStress);
     setShowBuster(false);
-    fetchTips(undefined, true); // Force a fresh AI fetch based on new stress
+    fetchTips(undefined, true);
   };
 
   return (
@@ -236,12 +246,20 @@ const WellnessCenter: React.FC = () => {
             {searchQuery ? `Tips for "${searchQuery}"` : 'Your Daily Wellness Map'}
             {loading && <Loader2 size={14} className="animate-spin" />}
           </h3>
-          {error && !loading && (
-            <div className="flex items-center gap-1 text-amber-500 text-[10px] font-bold">
-              <AlertCircle size={12} />
-              <span>Offline - Using Presets</span>
-            </div>
-          )}
+          <div className="flex items-center gap-3">
+             {isLive && (
+               <div className="flex items-center gap-1 text-emerald-500 text-[10px] font-bold bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100">
+                 <Zap size={10} />
+                 <span>AI Live</span>
+               </div>
+             )}
+             {error && !loading && (
+               <div className="flex items-center gap-1 text-amber-500 text-[10px] font-bold bg-amber-50 px-2 py-1 rounded-lg border border-amber-100">
+                 <AlertCircle size={12} />
+                 <span>Offline - Presets</span>
+               </div>
+             )}
+          </div>
         </div>
         
         <div className="grid grid-cols-1 gap-4">

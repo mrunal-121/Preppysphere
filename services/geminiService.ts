@@ -2,7 +2,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { StudyPlan, IssueCategory, WellnessTip } from "../types";
 
-// Always use the API key exclusively from process.env.API_KEY as a direct property
+// The API key is injected via vite.config.ts from process.env.API_KEY
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const generateStudyPlan = async (subject: string, time: string): Promise<StudyPlan> => {
@@ -23,7 +23,6 @@ export const generateStudyPlan = async (subject: string, time: string): Promise<
       },
     },
   });
-  // Use .text property directly
   return JSON.parse(response.text || '{}');
 };
 
@@ -46,13 +45,12 @@ export const categorizeIssue = async (title: string, description: string): Promi
       },
     },
   });
-  // Use .text property directly
   return JSON.parse(response.text || '{}');
 };
 
 export const getWellnessTips = async (stressLevel: number, query?: string): Promise<WellnessTip[]> => {
   const prompt = query 
-    ? `Provide 3 wellness tips for a student facing this specific problem: "${query}". Current stress: ${stressLevel}/10.`
+    ? `Provide 3 wellness tips for a student facing this specific problem: "${query}". Current stress: ${stressLevel}/10. Keep the advice practical and empathetic.`
     : `Provide 3 wellness tips for a student with a stress level of ${stressLevel}/10.`;
 
   const response = await ai.models.generateContent({
@@ -74,8 +72,14 @@ export const getWellnessTips = async (stressLevel: number, query?: string): Prom
       },
     },
   });
-  // Use .text property directly
-  return JSON.parse(response.text || '[]');
+  
+  const text = response.text || '[]';
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    console.error("Gemini returned invalid JSON:", text);
+    return [];
+  }
 };
 
 export const solveDoubt = async (doubt: string): Promise<string> => {
@@ -92,12 +96,10 @@ export const solveDoubt = async (doubt: string): Promise<string> => {
     
     Doubt: ${doubt}`,
     config: {
-      temperature: 0.3, // Lower temperature for more focused, simpler answers
+      temperature: 0.3,
     },
   });
   
-  // Post-process to remove any stray markdown symbols just in case
-  // Access the .text property as a string as per guidelines
   return (response.text || "I couldn't find an answer. Try rephrasing.")
     .replace(/[#*]/g, '');
 };
