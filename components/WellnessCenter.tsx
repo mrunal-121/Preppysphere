@@ -5,8 +5,11 @@ import { WellnessTip } from '../types';
 import { 
   Heart, Activity, Wind, Users, Coffee, Loader2, Sparkles, Search, 
   Smile, Frown, Meh, Thermometer, CheckSquare, Square, CheckCircle2,
-  AlertCircle, Zap, ShieldAlert, RefreshCw
+  Zap, ShieldAlert, RefreshCw, AlertTriangle
 } from 'lucide-react';
+
+const CACHE_VERSION = 'v2_pure_live';
+const STORAGE_KEY = 'preppysphere_wellness_data';
 
 const STRESS_BUSTER_QUESTIONS = [
   { id: 1, text: "I have difficulty concentrating today.", points: 2 },
@@ -23,26 +26,23 @@ const WellnessCenter: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [showBuster, setShowBuster] = useState(false);
   const [checkedItems, setCheckedItems] = useState<number[]>([]);
-  const [errorType, setErrorType] = useState<string | null>(null);
-  const [isLive, setIsLive] = useState(false);
+  const [errorStatus, setErrorStatus] = useState<string | null>(null);
+  const [isLiveSession, setIsLiveSession] = useState(false);
 
-  const STORAGE_KEY = 'preppysphere_daily_wellness';
-
-  const fetchTips = async (query?: string, forceRefresh = false) => {
+  const fetchTips = async (query?: string, force = false) => {
     setLoading(true);
-    setErrorType(null);
-    setIsLive(false);
+    setErrorStatus(null);
 
-    // Bypass cache for searches or forced refreshes
-    if (!query && !forceRefresh) {
+    // Only use cache for the initial daily load, never for searches
+    if (!query && !force) {
       const cached = localStorage.getItem(STORAGE_KEY);
       if (cached) {
-        const { date, data, stressLevel } = JSON.parse(cached);
-        if (date === new Date().toISOString().split('T')[0] && data.length > 0) {
-          setTips(data);
-          setStress(stressLevel || 5);
+        const parsed = JSON.parse(cached);
+        if (parsed.version === CACHE_VERSION && parsed.date === new Date().toISOString().split('T')[0]) {
+          setTips(parsed.data);
+          setStress(parsed.stressLevel || 5);
           setLoading(false);
-          setIsLive(true); // Assuming cached data was originally live
+          setIsLiveSession(true);
           return;
         }
       }
@@ -51,51 +51,36 @@ const WellnessCenter: React.FC = () => {
     try {
       const data = await getWellnessTips(stress, query);
       if (data && data.length > 0) {
-        const initializedTips = data.map((t: WellnessTip) => ({ ...t, completed: false }));
-        setTips(initializedTips);
-        setIsLive(true);
+        const processed = data.map(t => ({ ...t, completed: false }));
+        setTips(processed);
+        setIsLiveSession(true);
         
         if (!query) {
           localStorage.setItem(STORAGE_KEY, JSON.stringify({
+            version: CACHE_VERSION,
             date: new Date().toISOString().split('T')[0],
-            data: initializedTips,
+            data: processed,
             stressLevel: stress
           }));
         }
       } else {
-        throw new Error("EMPTY_DATA");
+        throw new Error("EMPTY");
       }
     } catch (err: any) {
-      console.error("Live Wellness API Error:", err.message);
-      setErrorType(err.message === 'API_KEY_MISSING' ? 'MISSING_KEY' : 'CONNECTION_FAILED');
-      setTips([]); // Clear list so user doesn't see old/stale data
-      setIsLive(false);
+      console.error("Gemini Live Error:", err.message);
+      setErrorStatus(err.message === 'API_KEY_MISSING' ? 'AUTH_REQUIRED' : 'SERVICE_UNAVAILABLE');
+      setTips([]);
+      setIsLiveSession(false);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchTips();
-  }, []);
+  useEffect(() => { fetchTips(); }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     fetchTips(searchQuery.trim() || undefined, true);
-  };
-
-  const toggleTipCompletion = (index: number) => {
-    const newTips = [...tips];
-    newTips[index].completed = !newTips[index].completed;
-    setTips(newTips);
-    if (!searchQuery) {
-      const cached = localStorage.getItem(STORAGE_KEY);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        parsed.data = newTips;
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
-      }
-    }
   };
 
   return (
@@ -107,24 +92,21 @@ const WellnessCenter: React.FC = () => {
           </div>
           <div>
             <h2 className="text-xl font-bold text-slate-800">Wellness Center</h2>
-            <p className="text-xs text-slate-400">Pure Gemini AI Intelligence</p>
+            <p className="text-xs text-slate-400 font-bold uppercase tracking-tighter">Live Gemini Analysis</p>
           </div>
         </div>
         <button 
           onClick={() => setShowBuster(!showBuster)}
-          className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl text-xs font-bold hover:bg-indigo-100 transition-colors flex items-center gap-2 border border-indigo-100"
+          className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl text-xs font-black hover:bg-indigo-100 transition-colors border border-indigo-100 uppercase"
         >
-          <Activity size={16} /> Stress Buster
+          Stress Check
         </button>
       </div>
 
       {showBuster && (
         <div className="bg-white p-6 rounded-[2.5rem] border-2 border-indigo-100 shadow-2xl space-y-5 animate-in zoom-in-95 duration-300 border-dashed">
-          <div className="flex items-center gap-2 text-indigo-600">
-            <Activity size={20} className="animate-pulse" />
-            <h3 className="font-bold">Rapid Stress Check</h3>
-          </div>
-          <div className="space-y-3">
+          <h3 className="font-bold text-indigo-600 flex items-center gap-2"><Activity size={18}/> Stress Assessment</h3>
+          <div className="space-y-2">
             {STRESS_BUSTER_QUESTIONS.map(q => (
               <button 
                 key={q.id}
@@ -140,14 +122,14 @@ const WellnessCenter: React.FC = () => {
           </div>
           <button 
             onClick={() => {
-              const points = checkedItems.reduce((acc, id) => acc + (STRESS_BUSTER_QUESTIONS.find(q => q.id === id)?.points || 0), 0);
-              setStress(Math.min(Math.max(Math.round(points), 1), 10));
+              const pts = checkedItems.reduce((a, id) => a + (STRESS_BUSTER_QUESTIONS.find(q=>q.id===id)?.points||0), 0);
+              setStress(Math.min(Math.max(Math.round(pts), 1), 10));
               setShowBuster(false);
               fetchTips(undefined, true);
             }}
-            className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg"
+            className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-lg uppercase"
           >
-            Generate AI Advice
+            Update Live Tips
           </button>
         </div>
       )}
@@ -155,13 +137,13 @@ const WellnessCenter: React.FC = () => {
       <form onSubmit={handleSearch} className="relative">
         <input 
           type="text" 
-          placeholder="Describe a problem for live AI analysis..."
+          placeholder="Analyze a specific problem (e.g. Exam anxiety)..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full bg-white border border-slate-100 p-5 pl-14 rounded-[2rem] outline-none focus:ring-4 focus:ring-rose-50 focus:border-rose-300 transition-all shadow-sm"
+          className="w-full bg-white border border-slate-100 p-5 pl-14 rounded-[2rem] outline-none focus:ring-4 focus:ring-rose-50 transition-all shadow-sm font-medium"
         />
         <Search className="absolute left-5 top-5 text-slate-400" size={20} />
-        <button type="submit" className="absolute right-3 top-2.5 p-2.5 bg-rose-500 text-white rounded-2xl hover:bg-rose-600 transition-colors shadow-md">
+        <button type="submit" className="absolute right-3 top-2.5 p-2.5 bg-rose-500 text-white rounded-2xl hover:bg-rose-600 shadow-md">
           <Sparkles size={18} />
         </button>
       </form>
@@ -170,11 +152,11 @@ const WellnessCenter: React.FC = () => {
         <div className="flex justify-between items-center mb-4 px-1">
           <div className="flex items-center gap-2">
             <Thermometer size={16} className="text-rose-500" />
-            <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Stress Level</label>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Live Stress Input</label>
           </div>
           <div className="flex items-center gap-2">
             {stress <= 3 ? <Smile className="text-green-500" /> : stress <= 7 ? <Meh className="text-amber-500" /> : <Frown className="text-rose-500" />}
-            <span className="text-lg font-bold text-slate-800">{stress}/10</span>
+            <span className="text-lg font-black text-slate-800">{stress}/10</span>
           </div>
         </div>
         <input type="range" min="1" max="10" value={stress} onChange={(e) => setStress(parseInt(e.target.value))} className="w-full h-2.5 bg-slate-100 rounded-lg appearance-none accent-rose-500" />
@@ -182,13 +164,13 @@ const WellnessCenter: React.FC = () => {
 
       <div className="space-y-4">
         <div className="flex justify-between items-center px-2">
-          <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-            {searchQuery ? `AI Analysis: ${searchQuery}` : 'Your Live Wellness Map'}
-            {loading && <Loader2 size={14} className="animate-spin" />}
+          <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+            {searchQuery ? `Targeted Analysis` : 'Daily Wellness Strategy'}
+            {loading && <Loader2 size={12} className="animate-spin" />}
           </h3>
-          {isLive && (
-            <div className="flex items-center gap-1 text-emerald-500 text-[10px] font-bold bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100">
-              <Zap size={10} /> <span>LIVE AI ACTIVE</span>
+          {isLiveSession && (
+            <div className="flex items-center gap-1 text-emerald-600 text-[10px] font-black bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100 animate-pulse">
+              <Zap size={10} fill="currentColor" /> <span>LIVE AI ACTIVE</span>
             </div>
           )}
         </div>
@@ -196,26 +178,26 @@ const WellnessCenter: React.FC = () => {
         <div className="grid grid-cols-1 gap-4">
           {loading ? (
              Array(3).fill(0).map((_, i) => <div key={i} className="bg-white p-6 rounded-3xl border border-slate-100 h-32 animate-pulse" />)
-          ) : errorType ? (
-            <div className="bg-rose-50 border-2 border-dashed border-rose-200 p-8 rounded-[2.5rem] text-center space-y-4">
-              <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto shadow-sm text-rose-500">
+          ) : errorStatus ? (
+            <div className="bg-rose-50 border-2 border-dashed border-rose-200 p-10 rounded-[2.5rem] text-center space-y-4">
+              <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto shadow-sm text-rose-500 border border-rose-100">
                 <ShieldAlert size={32} />
               </div>
               <div>
-                <h4 className="font-bold text-rose-900">
-                  {errorType === 'MISSING_KEY' ? 'API Key Not Found' : 'Live Connection Failed'}
+                <h4 className="font-black text-rose-900 uppercase tracking-tight">
+                  {errorStatus === 'AUTH_REQUIRED' ? 'API Configuration Missing' : 'Network Connection Failed'}
                 </h4>
-                <p className="text-xs text-rose-700 mt-1 max-w-[200px] mx-auto leading-relaxed">
-                  {errorType === 'MISSING_KEY' 
-                    ? 'Gemini requires an API_KEY in your Netlify Environment Variables to generate tips.' 
-                    : 'The AI model is currently unreachable. Please check your network and try again.'}
+                <p className="text-xs text-rose-700 mt-2 max-w-[240px] mx-auto leading-relaxed font-medium">
+                  {errorStatus === 'AUTH_REQUIRED' 
+                    ? 'The Gemini API_KEY is not defined in your Netlify site environment. Live features are locked.' 
+                    : 'We could not reach the Gemini AI model. Check your internet connection or API status.'}
                 </p>
               </div>
               <button 
                 onClick={() => fetchTips(searchQuery || undefined, true)}
-                className="inline-flex items-center gap-2 bg-white text-rose-600 px-6 py-2 rounded-xl text-xs font-bold border border-rose-200 hover:bg-rose-100 transition-colors shadow-sm"
+                className="bg-white text-rose-600 px-8 py-3 rounded-2xl text-xs font-black border border-rose-200 hover:bg-rose-100 shadow-sm flex items-center gap-2 mx-auto transition-all"
               >
-                <RefreshCw size={14} /> Retry Live Call
+                <RefreshCw size={14} /> RE-AUTHENTICATE & RETRY
               </button>
             </div>
           ) : tips.length > 0 ? (
@@ -225,11 +207,18 @@ const WellnessCenter: React.FC = () => {
                   {tip.completed ? <CheckCircle2 size={20} /> : tip.category === 'mental' ? <Wind size={20} /> : tip.category === 'physical' ? <Activity size={20} /> : <Users size={20} />}
                 </div>
                 <div className="flex-1 space-y-1">
-                  <h4 className={`text-[10px] font-bold uppercase tracking-widest ${tip.completed ? 'text-emerald-600' : 'text-slate-400'}`}>{tip.category} Wellness</h4>
+                  <h4 className={`text-[10px] font-black uppercase tracking-widest ${tip.completed ? 'text-emerald-600' : 'text-slate-400'}`}>{tip.category} Wellness</h4>
                   <p className={`text-sm font-bold leading-snug ${tip.completed ? 'text-emerald-800 line-through' : 'text-slate-800'}`}>{tip.tip}</p>
-                  <div className={`flex items-center justify-between gap-2 mt-3 p-2 rounded-xl border ${tip.completed ? 'bg-emerald-100 border-emerald-200 text-emerald-700' : 'bg-slate-50 border-slate-100 text-indigo-600'}`}>
-                    <span className="text-xs font-bold">{tip.action}</span>
-                    <button onClick={() => toggleTipCompletion(i)} className={`text-[10px] font-black uppercase px-2 py-1 rounded-md ${tip.completed ? 'bg-white text-emerald-600' : 'bg-indigo-600 text-white shadow-md'}`}>
+                  <div className={`flex items-center justify-between gap-2 mt-4 p-3 rounded-2xl border ${tip.completed ? 'bg-emerald-100 border-emerald-200 text-emerald-700' : 'bg-slate-50 border-slate-100 text-indigo-600'}`}>
+                    <span className="text-[11px] font-black uppercase tracking-tight">{tip.action}</span>
+                    <button 
+                      onClick={() => {
+                        const newTips = [...tips];
+                        newTips[i].completed = !newTips[i].completed;
+                        setTips(newTips);
+                      }} 
+                      className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-xl ${tip.completed ? 'bg-white text-emerald-600' : 'bg-indigo-600 text-white shadow-md'}`}
+                    >
                       {tip.completed ? 'Undo' : 'Done'}
                     </button>
                   </div>
@@ -237,7 +226,10 @@ const WellnessCenter: React.FC = () => {
               </div>
             ))
           ) : (
-            <div className="text-center py-12 text-slate-400 text-xs italic">Enter a problem above to see AI advice.</div>
+            <div className="text-center py-16 bg-white border border-dashed border-slate-200 rounded-[2.5rem] flex flex-col items-center gap-3">
+              <AlertTriangle className="text-slate-200" size={32} />
+              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">No Active Insights</p>
+            </div>
           )}
         </div>
       </div>
