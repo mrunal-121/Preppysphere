@@ -2,7 +2,24 @@
 import React, { useState, useEffect } from 'react';
 import { getWellnessTips } from '../services/geminiService';
 import { WellnessTip } from '../types';
-import { Heart, Activity, Wind, Users, Coffee, Loader2, Sparkles, RefreshCcw, Search, Smile, Frown, Meh, Thermometer, CheckSquare, Square } from 'lucide-react';
+import { 
+  Heart, 
+  Activity, 
+  Wind, 
+  Users, 
+  Coffee, 
+  Loader2, 
+  Sparkles, 
+  Search, 
+  Smile, 
+  Frown, 
+  Meh, 
+  Thermometer, 
+  CheckSquare, 
+  Square, 
+  CheckCircle2,
+  AlertCircle
+} from 'lucide-react';
 
 const STRESS_BUSTER_QUESTIONS = [
   { id: 1, text: "I have difficulty concentrating today.", points: 2 },
@@ -19,14 +36,57 @@ const WellnessCenter: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [showBuster, setShowBuster] = useState(false);
   const [checkedItems, setCheckedItems] = useState<number[]>([]);
+  const [error, setError] = useState(false);
 
-  const fetchTips = async (query?: string) => {
+  // Persistence Key
+  const STORAGE_KEY = 'preppysphere_daily_wellness';
+
+  const fetchTips = async (query?: string, forceRefresh = false) => {
+    // Only use cache if it's not a specific search or a forced refresh
+    if (!query && !forceRefresh) {
+      const cached = localStorage.getItem(STORAGE_KEY);
+      if (cached) {
+        const { date, data, stressLevel } = JSON.parse(cached);
+        const today = new Date().toISOString().split('T')[0];
+        
+        // If data is from today, use it
+        if (date === today && data.length > 0) {
+          setTips(data);
+          setStress(stressLevel || 5);
+          return;
+        }
+      }
+    }
+
     setLoading(true);
+    setError(false);
     try {
       const data = await getWellnessTips(stress, query);
-      setTips(data);
+      if (data && data.length > 0) {
+        const initializedTips = data.map((t: WellnessTip) => ({ ...t, completed: false }));
+        setTips(initializedTips);
+        
+        // Save to cache if it's the daily general fetch
+        if (!query) {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({
+            date: new Date().toISOString().split('T')[0],
+            data: initializedTips,
+            stressLevel: stress
+          }));
+        }
+      } else {
+        throw new Error("Empty response");
+      }
     } catch (err) {
-      console.error(err);
+      console.error("Failed to fetch wellness tips:", err);
+      setError(true);
+      // Fallback tips if everything fails
+      const fallback: WellnessTip[] = [
+        { category: 'mental', tip: 'Take 5 deep breaths, holding for 4 seconds each.', action: 'Focus on your breath for 2 minutes', completed: false },
+        { category: 'physical', tip: 'Stand up and stretch your arms and neck.', action: '1-minute physical break', completed: false },
+        { category: 'social', tip: 'Send a quick "thinking of you" text to a friend.', action: 'Connect with 1 person', completed: false }
+      ];
+      setTips(fallback);
     } finally {
       setLoading(false);
     }
@@ -39,7 +99,23 @@ const WellnessCenter: React.FC = () => {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      fetchTips(searchQuery);
+      fetchTips(searchQuery, true);
+    }
+  };
+
+  const toggleTipCompletion = (index: number) => {
+    const newTips = [...tips];
+    newTips[index].completed = !newTips[index].completed;
+    setTips(newTips);
+    
+    // Update storage if we aren't in a search result
+    if (!searchQuery) {
+      const cached = localStorage.getItem(STORAGE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        parsed.data = newTips;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+      }
     }
   };
 
@@ -54,11 +130,10 @@ const WellnessCenter: React.FC = () => {
       const q = STRESS_BUSTER_QUESTIONS.find(item => item.id === id);
       return acc + (q?.points || 0);
     }, 0);
-    // Normalize to 1-10
     const calculatedStress = Math.min(Math.max(Math.round(points), 1), 10);
     setStress(calculatedStress);
     setShowBuster(false);
-    fetchTips();
+    fetchTips(undefined, true); // Force a fresh AI fetch based on new stress
   };
 
   return (
@@ -81,7 +156,6 @@ const WellnessCenter: React.FC = () => {
         </button>
       </div>
 
-      {/* Stress Buster Modal/Overlay */}
       {showBuster && (
         <div className="bg-white p-6 rounded-[2.5rem] border-2 border-indigo-100 shadow-2xl space-y-5 animate-in zoom-in-95 duration-300 border-dashed">
           <div className="flex items-center gap-2 text-indigo-600">
@@ -114,11 +188,10 @@ const WellnessCenter: React.FC = () => {
         </div>
       )}
 
-      {/* Search Bar */}
       <form onSubmit={handleSearch} className="relative">
         <input 
           type="text" 
-          placeholder="Describe a problem (e.g. exam anxiety, procrastination)..."
+          placeholder="Describe a problem (e.g. exam anxiety)..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="w-full bg-white border border-slate-100 p-5 pl-14 rounded-[2rem] outline-none focus:ring-4 focus:ring-rose-50 focus:border-rose-300 transition-all shadow-sm"
@@ -154,18 +227,22 @@ const WellnessCenter: React.FC = () => {
             onChange={(e) => setStress(parseInt(e.target.value))}
             className="w-full h-2.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-rose-500"
           />
-          <div className="flex justify-between mt-2 px-1">
-            <span className="text-[10px] text-slate-400 font-bold uppercase">Calm</span>
-            <span className="text-[10px] text-slate-400 font-bold uppercase">Severe</span>
-          </div>
         </div>
       </div>
 
       <div className="space-y-4">
-        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest px-2 flex items-center gap-2">
-          {searchQuery ? `Tips for "${searchQuery}"` : 'Your Daily Wellness Map'}
-          {loading && <Loader2 size={14} className="animate-spin" />}
-        </h3>
+        <div className="flex justify-between items-center px-2">
+          <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+            {searchQuery ? `Tips for "${searchQuery}"` : 'Your Daily Wellness Map'}
+            {loading && <Loader2 size={14} className="animate-spin" />}
+          </h3>
+          {error && !loading && (
+            <div className="flex items-center gap-1 text-amber-500 text-[10px] font-bold">
+              <AlertCircle size={12} />
+              <span>Offline - Using Presets</span>
+            </div>
+          )}
+        </div>
         
         <div className="grid grid-cols-1 gap-4">
           {loading ? (
@@ -174,21 +251,47 @@ const WellnessCenter: React.FC = () => {
              ))
           ) : (
             tips.map((tip, i) => (
-              <div key={i} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex gap-4 animate-in fade-in slide-in-from-left-4 duration-500" style={{ animationDelay: `${i * 100}ms` }}>
-                <div className={`p-4 h-fit rounded-2xl shrink-0 ${
+              <div 
+                key={i} 
+                className={`p-6 rounded-3xl border shadow-sm flex gap-4 transition-all duration-500 ${
+                  tip.completed 
+                    ? 'bg-emerald-50 border-emerald-100 opacity-80' 
+                    : 'bg-white border-slate-100'
+                }`}
+                style={{ animationDelay: `${i * 100}ms` }}
+              >
+                <div className={`p-4 h-fit rounded-2xl shrink-0 transition-colors ${
+                  tip.completed ? 'bg-emerald-200 text-emerald-700' :
                   tip.category === 'mental' ? 'bg-blue-50 text-blue-600' :
                   tip.category === 'physical' ? 'bg-orange-50 text-orange-600' :
                   'bg-emerald-50 text-emerald-600'
                 }`}>
-                  {tip.category === 'mental' ? <Wind size={20} /> : 
+                  {tip.completed ? <CheckCircle2 size={20} /> :
+                   tip.category === 'mental' ? <Wind size={20} /> : 
                    tip.category === 'physical' ? <Activity size={20} /> : <Users size={20} />}
                 </div>
-                <div className="space-y-1">
-                  <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{tip.category} Wellness</h4>
-                  <p className="text-sm font-bold text-slate-800 leading-snug">{tip.tip}</p>
-                  <div className="flex items-center gap-2 mt-3 p-2 bg-slate-50 rounded-xl border border-slate-100 text-indigo-600">
-                    <Sparkles size={12} />
-                    <span className="text-xs font-bold leading-tight">{tip.action}</span>
+                <div className="flex-1 space-y-1">
+                  <h4 className={`text-[10px] font-bold uppercase tracking-widest ${tip.completed ? 'text-emerald-600' : 'text-slate-400'}`}>
+                    {tip.category} Wellness {tip.completed && '• Completed'}
+                  </h4>
+                  <p className={`text-sm font-bold leading-snug ${tip.completed ? 'text-emerald-800 line-through decoration-emerald-300' : 'text-slate-800'}`}>
+                    {tip.tip}
+                  </p>
+                  <div className={`flex items-center justify-between gap-2 mt-3 p-2 rounded-xl border transition-colors ${
+                    tip.completed ? 'bg-emerald-100 border-emerald-200 text-emerald-700' : 'bg-slate-50 border-slate-100 text-indigo-600'
+                  }`}>
+                    <div className="flex items-center gap-2">
+                      <Sparkles size={12} />
+                      <span className="text-xs font-bold leading-tight">{tip.action}</span>
+                    </div>
+                    <button 
+                      onClick={() => toggleTipCompletion(i)}
+                      className={`text-[10px] font-black uppercase tracking-tighter px-2 py-1 rounded-md transition-all ${
+                        tip.completed ? 'bg-white text-emerald-600 shadow-sm' : 'bg-indigo-600 text-white shadow-md active:scale-95'
+                      }`}
+                    >
+                      {tip.completed ? 'Undo' : 'Done'}
+                    </button>
                   </div>
                 </div>
               </div>
