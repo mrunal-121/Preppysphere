@@ -10,7 +10,6 @@ export interface WellnessTip {
   category: 'mental' | 'physical' | 'social';
   tip: string;
   action: string;
-  completed?: boolean;
 }
 
 export enum IssueCategory {

@@ -12,8 +12,7 @@ import {
   School,
   Award,
   BookOpen,
-  Calendar,
-  Sparkles
+  Calendar
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import Logo from './Logo';
@@ -64,21 +63,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     const accounts = getAccounts();
     accounts.push(account);
     localStorage.setItem('preppysphere_accounts', JSON.stringify(accounts));
-  };
-
-  const handleGuestLogin = () => {
-    setIsLoading(true);
-    setTimeout(() => {
-      onLogin({
-        name: 'Guest Scholar',
-        username: 'guest_user',
-        collegeCampus: 'Preppysphere University',
-        department: 'General Studies',
-        major: 'Open Curriculum',
-        grade: 'MVP Access',
-        streak: 1,
-      });
-    }, 1000);
   };
 
   const handleRegister = (e: React.FormEvent) => {
@@ -366,18 +350,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   )}
                 </button>
               </form>
-
-              {mode === 'login' && (
-                <div className="mt-4">
-                  <button 
-                    onClick={handleGuestLogin}
-                    className="w-full bg-blue-50 text-blue-600 p-4 rounded-2xl font-bold hover:bg-blue-100 transition-all flex items-center justify-center gap-2 border border-blue-100"
-                  >
-                    <Sparkles size={18} />
-                    <span>Continue as Guest (MVP)</span>
-                  </button>
-                </div>
-              )}
 
               <div className="mt-6 text-center">
                 <button 
