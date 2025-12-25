@@ -37,9 +37,18 @@ const App: React.FC = () => {
 
   // Load state from localStorage on mount
   useEffect(() => {
+    // MVP Access Check: Allow access via ?mvp=true
+    const params = new URLSearchParams(window.location.search);
+    const isMvpAccess = params.get('mvp') === 'true';
+
     const savedLogin = localStorage.getItem('preppysphere_logged_in');
-    if (savedLogin === 'true') {
+    
+    if (isMvpAccess || savedLogin === 'true') {
       setIsLoggedIn(true);
+      if (isMvpAccess) {
+        // Clean up URL after successful MVP bypass
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
     }
 
     const savedIssues = localStorage.getItem('preppysphere_issues');
@@ -68,6 +77,17 @@ const App: React.FC = () => {
     
     if (savedProfileStr) {
       currentProfile = JSON.parse(savedProfileStr);
+    } else if (isMvpAccess) {
+      // Default MVP profile
+      currentProfile = { 
+        name: 'Guest Scholar',
+        username: 'mvp_guest',
+        major: 'Computer Science',
+        collegeCampus: 'Preppysphere University',
+        department: 'Tech & Design',
+        grade: 'Year 2',
+        streak: 5
+      };
     } else {
       currentProfile = { 
         name: 'Scholar',
@@ -96,7 +116,7 @@ const App: React.FC = () => {
           newStreak = 1;
         }
       } else {
-        newStreak = 1;
+        newStreak = Math.max(newStreak, 1);
       }
       currentProfile = { ...currentProfile, streak: newStreak, lastActiveDate: today };
       localStorage.setItem('preppysphere_profile', JSON.stringify(currentProfile));
