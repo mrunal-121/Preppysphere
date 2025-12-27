@@ -2,37 +2,37 @@
 import React, { useState } from 'react';
 import { generateStudyPlan } from '../services/geminiService';
 import { StudyPlan } from '../types';
-import { Calendar, Clock, Book, CheckCircle, Loader2, Play, AlertCircle, RefreshCcw } from 'lucide-react';
+import { Calendar, CheckCircle, Loader2, Play, AlertCircle, RefreshCcw } from 'lucide-react';
 
 const StudyPlanner: React.FC = () => {
   const [subject, setSubject] = useState('');
   const [time, setTime] = useState('2 hours');
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState<StudyPlan | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [errorType, setErrorType] = useState<string | null>(null);
 
   const handleGenerate = async () => {
     if (!subject) return;
     setLoading(true);
-    setError(null);
+    setErrorType(null);
     try {
       const generated = await generateStudyPlan(subject, time);
       setPlan(generated);
     } catch (err: any) {
-      console.error(err);
-      setError(err.message);
+      console.error("AI Service Issue"); // Generic console log
+      setErrorType(err.message || "UNKNOWN");
     } finally {
       setLoading(false);
     }
   };
 
-  const getErrorMessage = (code: string) => {
-    switch (code) {
-      case 'API_KEY_MISSING': return "Gemini API Key is not configured. Please select one to continue.";
-      case 'RATE_LIMIT': return "Too many requests. Please wait a minute and try again.";
-      case 'INVALID_KEY': return "The API key provided is invalid. Please update it.";
-      case 'OFFLINE': return "No internet connection detected.";
-      default: return "Something went wrong while consulting Gemini.";
+  const getCleanErrorMessage = (type: string) => {
+    switch (type) {
+      case 'API_KEY_MISSING': return "Service configuration is required. Please check your setup.";
+      case 'RATE_LIMIT': return "AI is currently busy. Please wait a moment.";
+      case 'INVALID_KEY': return "Authentication failed. Please verify your credentials.";
+      case 'OFFLINE': return "You are currently offline. Check your connection.";
+      default: return "Gemini encountered a minor hurdle. Please try generating again.";
     }
   };
 
@@ -78,12 +78,12 @@ const StudyPlanner: React.FC = () => {
           </div>
         </div>
         
-        {error && (
-          <div className="bg-rose-50 border border-rose-100 p-4 rounded-2xl flex items-start gap-3">
+        {errorType && (
+          <div className="bg-rose-50 border border-rose-100 p-4 rounded-2xl flex items-start gap-3 animate-in fade-in slide-in-from-top-1">
             <AlertCircle className="text-rose-500 shrink-0 mt-0.5" size={16} />
             <div className="flex-1">
-              <p className="text-xs font-bold text-rose-800 uppercase tracking-tight">AI Service Error</p>
-              <p className="text-[11px] text-rose-600 font-medium leading-relaxed">{getErrorMessage(error)}</p>
+              <p className="text-xs font-bold text-rose-800 uppercase tracking-tight">AI Service Status</p>
+              <p className="text-[11px] text-rose-600 font-medium leading-relaxed">{getCleanErrorMessage(errorType)}</p>
             </div>
             <button onClick={handleGenerate} className="p-2 text-rose-500 hover:bg-rose-100 rounded-xl transition-colors">
               <RefreshCcw size={16} />

@@ -7,9 +7,7 @@ import {
   Heart, 
   MessageSquare,
   User,
-  Info,
-  ShieldAlert,
-  Zap
+  Info
 } from 'lucide-react';
 import { ViewState, CommunityIssue, UserProfile, TodoTask } from './types';
 import Dashboard from './components/Dashboard';
@@ -24,7 +22,6 @@ import Logo from './components/Logo';
 
 const App: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [hasApiKey, setHasApiKey] = useState(true);
   const [activeView, setActiveView] = useState<ViewState>('home');
   const [issues, setIssues] = useState<CommunityIssue[]>([]);
   const [tasks, setTasks] = useState<TodoTask[]>([]);
@@ -40,18 +37,6 @@ const App: React.FC = () => {
 
   // Load state from localStorage on mount
   useEffect(() => {
-    // Check for API Key if running in an environment that requires it
-    const checkApiKey = async () => {
-      if (typeof window !== 'undefined' && (window as any).aistudio) {
-        const hasKey = await (window as any).aistudio.hasSelectedApiKey();
-        setHasApiKey(hasKey);
-      } else {
-        // Fallback for standard environments: check if process.env.API_KEY is defined
-        setHasApiKey(!!process.env.API_KEY);
-      }
-    };
-    checkApiKey();
-
     // MVP Access Check
     const params = new URLSearchParams(window.location.search);
     const isMvpAccess = params.get('mvp') === 'true';
@@ -118,13 +103,6 @@ const App: React.FC = () => {
     
     setUserProfile(currentProfile);
   }, []);
-
-  const handleOpenKeySelector = async () => {
-    if ((window as any).aistudio) {
-      await (window as any).aistudio.openSelectKey();
-      setHasApiKey(true); // Assume success per race condition mitigation
-    }
-  };
 
   const handleLogin = (userData: Partial<UserProfile>) => {
     const newProfile = { ...userProfile, ...userData };
@@ -208,13 +186,13 @@ const App: React.FC = () => {
       <header className="bg-white/80 backdrop-blur-md px-6 pt-10 pb-4 border-b border-slate-100 flex justify-between items-center sticky top-0 z-10">
         <div className="flex items-center gap-2">
           <Logo size="sm" showText={false} />
-          <div>
+          <div className="flex flex-col">
             <h1 className="text-xl font-black logo-text tracking-tighter">
               PreppySphere
             </h1>
-            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1">
+            <span className="text-[8px] text-slate-400 font-black uppercase tracking-widest leading-none">
               By Gemini AI
-            </p>
+            </span>
           </div>
         </div>
         <div className="flex gap-3 items-center">
