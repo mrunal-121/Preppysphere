@@ -1,16 +1,16 @@
 
 import React, { useState } from 'react';
-// Added missing Sparkles icon to the imports
-import { User, ArrowLeft, Save, CheckCircle, GraduationCap, MapPin, Building2, School, AtSign, Info, Sparkles } from 'lucide-react';
+import { User, ArrowLeft, Save, CheckCircle, GraduationCap, MapPin, Building2, School, AtSign, Info, Sparkles, LogOut } from 'lucide-react';
 import { UserProfile } from '../types';
 
 interface ProfileProps {
   profile: UserProfile;
   onSave: (profile: UserProfile) => void;
+  onLogout: () => void;
   onBack: () => void;
 }
 
-const Profile: React.FC<ProfileProps> = ({ profile, onSave, onBack }) => {
+const Profile: React.FC<ProfileProps> = ({ profile, onSave, onLogout, onBack }) => {
   const [name, setName] = useState(profile.name);
   const [major, setMajor] = useState(profile.major);
   const [campus, setCampus] = useState(profile.collegeCampus || '');
@@ -173,6 +173,14 @@ const Profile: React.FC<ProfileProps> = ({ profile, onSave, onBack }) => {
             {saved ? 'IDENTITY UPDATED' : 'SAVE CHANGES'}
           </button>
         </div>
+
+        <button 
+          onClick={onLogout}
+          className="w-full py-5 rounded-[2.5rem] bg-white border border-rose-100 text-rose-500 font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 hover:bg-rose-50 transition-all active:scale-95 shadow-sm"
+        >
+          <LogOut size={18} />
+          Sign Out of Sphere
+        </button>
 
         <div className="p-6 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-[2.5rem] border border-white flex gap-4 items-center">
           <div className="p-3 bg-white rounded-2xl shadow-sm text-indigo-500">

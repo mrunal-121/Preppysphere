@@ -7,7 +7,9 @@ import {
   Heart, 
   MessageSquare,
   User,
-  Info
+  Info,
+  ShieldAlert,
+  Zap
 } from 'lucide-react';
 import { ViewState, CommunityIssue, UserProfile, TodoTask } from './types';
 import Dashboard from './components/Dashboard';
@@ -22,6 +24,7 @@ import Logo from './components/Logo';
 
 const App: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [hasApiKey, setHasApiKey] = useState(true);
   const [activeView, setActiveView] = useState<ViewState>('home');
   const [issues, setIssues] = useState<CommunityIssue[]>([]);
   const [tasks, setTasks] = useState<TodoTask[]>([]);
@@ -37,24 +40,32 @@ const App: React.FC = () => {
 
   // Load state from localStorage on mount
   useEffect(() => {
-    // MVP Access Check: Allow access via ?mvp=true
+    // Check for API Key if running in an environment that requires it
+    const checkApiKey = async () => {
+      if (typeof window !== 'undefined' && (window as any).aistudio) {
+        const hasKey = await (window as any).aistudio.hasSelectedApiKey();
+        setHasApiKey(hasKey);
+      } else {
+        // Fallback for standard environments: check if process.env.API_KEY is defined
+        setHasApiKey(!!process.env.API_KEY);
+      }
+    };
+    checkApiKey();
+
+    // MVP Access Check
     const params = new URLSearchParams(window.location.search);
     const isMvpAccess = params.get('mvp') === 'true';
-
     const savedLogin = localStorage.getItem('preppysphere_logged_in');
     
     if (isMvpAccess || savedLogin === 'true') {
       setIsLoggedIn(true);
       if (isMvpAccess) {
-        // Clean up URL after successful MVP bypass
         window.history.replaceState({}, document.title, window.location.pathname);
       }
     }
 
     const savedIssues = localStorage.getItem('preppysphere_issues');
-    if (savedIssues) {
-      setIssues(JSON.parse(savedIssues));
-    }
+    if (savedIssues) setIssues(JSON.parse(savedIssues));
     
     const savedTasks = localStorage.getItem('preppysphere_tasks');
     if (savedTasks) {
@@ -67,9 +78,7 @@ const App: React.FC = () => {
     }
     
     const savedFormalityTasks = localStorage.getItem('preppysphere_formality_tasks');
-    if (savedFormalityTasks) {
-      setFormalityTasks(JSON.parse(savedFormalityTasks));
-    }
+    if (savedFormalityTasks) setFormalityTasks(JSON.parse(savedFormalityTasks));
 
     // Profile & Streak Logic
     const savedProfileStr = localStorage.getItem('preppysphere_profile');
@@ -77,17 +86,6 @@ const App: React.FC = () => {
     
     if (savedProfileStr) {
       currentProfile = JSON.parse(savedProfileStr);
-    } else if (isMvpAccess) {
-      // Default MVP profile
-      currentProfile = { 
-        name: 'Guest Scholar',
-        username: 'mvp_guest',
-        major: 'Computer Science',
-        collegeCampus: 'Preppysphere University',
-        department: 'Tech & Design',
-        grade: 'Year 2',
-        streak: 5
-      };
     } else {
       currentProfile = { 
         name: 'Scholar',
@@ -109,12 +107,8 @@ const App: React.FC = () => {
         const current = new Date(today);
         const diffTime = current.getTime() - last.getTime();
         const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-        if (diffDays === 1) {
-          newStreak += 1;
-        } else if (diffDays > 1) {
-          newStreak = 1;
-        }
+        if (diffDays === 1) newStreak += 1;
+        else if (diffDays > 1) newStreak = 1;
       } else {
         newStreak = Math.max(newStreak, 1);
       }
@@ -125,12 +119,25 @@ const App: React.FC = () => {
     setUserProfile(currentProfile);
   }, []);
 
+  const handleOpenKeySelector = async () => {
+    if ((window as any).aistudio) {
+      await (window as any).aistudio.openSelectKey();
+      setHasApiKey(true); // Assume success per race condition mitigation
+    }
+  };
+
   const handleLogin = (userData: Partial<UserProfile>) => {
     const newProfile = { ...userProfile, ...userData };
     setUserProfile(newProfile);
     setIsLoggedIn(true);
     localStorage.setItem('preppysphere_logged_in', 'true');
     localStorage.setItem('preppysphere_profile', JSON.stringify(newProfile));
+  };
+
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    localStorage.removeItem('preppysphere_logged_in');
+    setActiveView('home');
   };
 
   const saveIssues = (newIssues: CommunityIssue[]) => {
@@ -180,26 +187,35 @@ const App: React.FC = () => {
       case 'chat':
         return <DoubtAssistant />;
       case 'profile':
-        return <Profile profile={userProfile} onSave={saveProfile} onBack={() => setActiveView('home')} />;
+        return (
+          <Profile 
+            profile={userProfile} 
+            onSave={saveProfile} 
+            onLogout={handleLogout}
+            onBack={() => setActiveView('home')} 
+          />
+        );
       case 'features':
         return <Features onBack={() => setActiveView('home')} />;
       default:
-        return (
-          <Dashboard 
-            setActiveView={setActiveView} 
-            userProfile={userProfile} 
-            issuesCount={issues.length} 
-            tasks={tasks}
-            setTasks={saveTasks}
-            formalityTasks={formalityTasks}
-            setFormalityTasks={saveFormalityTasks}
-          />
-        );
+        return <Dashboard setActiveView={setActiveView} userProfile={userProfile} issuesCount={issues.length} tasks={tasks} setTasks={saveTasks} formalityTasks={formalityTasks} setFormalityTasks={saveFormalityTasks} />;
     }
   };
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-50 text-slate-900 overflow-hidden">
+      {!hasApiKey && (
+        <div className="bg-rose-600 text-white px-6 py-2 flex items-center justify-between text-[10px] font-black uppercase tracking-widest animate-in slide-in-from-top duration-500 z-[100]">
+          <div className="flex items-center gap-2">
+            <ShieldAlert size={14} />
+            <span>Gemini AI is offline</span>
+          </div>
+          <button onClick={handleOpenKeySelector} className="bg-white text-rose-600 px-3 py-1 rounded-lg flex items-center gap-1">
+            <Zap size={10} fill="currentColor" /> Connect
+          </button>
+        </div>
+      )}
+
       {/* Top Header */}
       <header className="bg-white/80 backdrop-blur-md px-6 pt-10 pb-4 border-b border-slate-100 flex justify-between items-center sticky top-0 z-10">
         <div className="flex items-center gap-2">
@@ -208,7 +224,9 @@ const App: React.FC = () => {
             <h1 className="text-xl font-black logo-text tracking-tighter">
               PreppySphere
             </h1>
-            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">By Gemini AI</p>
+            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1">
+              By Gemini AI {hasApiKey && <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse inline-block"></span>}
+            </p>
           </div>
         </div>
         <div className="flex gap-3 items-center">
@@ -240,36 +258,11 @@ const App: React.FC = () => {
 
       {/* Navigation Bottom Bar */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t border-slate-100 px-6 py-3 pb-6 flex justify-between items-center z-50">
-        <NavButton 
-          active={activeView === 'home'} 
-          onClick={() => setActiveView('home')} 
-          icon={<Home size={22} />} 
-          label="Home" 
-        />
-        <NavButton 
-          active={activeView === 'study'} 
-          onClick={() => setActiveView('study')} 
-          icon={<BookOpen size={22} />} 
-          label="Study" 
-        />
-        <NavButton 
-          active={activeView === 'chat'} 
-          onClick={() => setActiveView('chat')} 
-          icon={<MessageSquare size={22} />} 
-          label="Doubts"
-        />
-        <NavButton 
-          active={activeView === 'wellness'} 
-          onClick={() => setActiveView('wellness')} 
-          icon={<Heart size={22} />} 
-          label="Wellness" 
-        />
-        <NavButton 
-          active={activeView === 'issues'} 
-          onClick={() => setActiveView('issues')} 
-          icon={<AlertCircle size={22} />} 
-          label="Issues" 
-        />
+        <NavButton active={activeView === 'home'} onClick={() => setActiveView('home')} icon={<Home size={22} />} label="Home" />
+        <NavButton active={activeView === 'study'} onClick={() => setActiveView('study')} icon={<BookOpen size={22} />} label="Study" />
+        <NavButton active={activeView === 'chat'} onClick={() => setActiveView('chat')} icon={<MessageSquare size={22} />} label="Doubts" />
+        <NavButton active={activeView === 'wellness'} onClick={() => setActiveView('wellness')} icon={<Heart size={22} />} label="Wellness" />
+        <NavButton active={activeView === 'issues'} onClick={() => setActiveView('issues')} icon={<AlertCircle size={22} />} label="Issues" />
       </nav>
 
       <style dangerouslySetInnerHTML={{ __html: `
