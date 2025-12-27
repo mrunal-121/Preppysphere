@@ -5,7 +5,7 @@ import { WellnessTip } from '../types';
 import { 
   Heart, Activity, Wind, Users, Loader2, Sparkles, Search, 
   Smile, Frown, Meh, Thermometer, CheckSquare, Square, CheckCircle2,
-  Zap, ShieldAlert, RefreshCw, AlertTriangle, Lightbulb, Circle
+  Zap, RefreshCw, AlertTriangle, Lightbulb, Circle
 } from 'lucide-react';
 
 // Enhanced mock database for dynamic preview behavior
@@ -40,9 +40,7 @@ const WellnessCenter: React.FC = () => {
   const [showBuster, setShowBuster] = useState(false);
   const [checkedItems, setCheckedItems] = useState<number[]>([]);
   const [errorStatus, setErrorStatus] = useState<string | null>(null);
-  const [isLiveSession, setIsLiveSession] = useState(false);
 
-  // Helper to get simulated tips based on query keywords
   const getDynamicMockTips = (query?: string): WellnessTip[] => {
     const q = query?.toLowerCase() || '';
     if (q.includes('exam') || q.includes('test') || q.includes('study')) return MOCK_PREVIEWS.exam;
@@ -54,23 +52,17 @@ const WellnessCenter: React.FC = () => {
   const fetchTips = async (query?: string) => {
     setLoading(true);
     setErrorStatus(null);
-    setIsLiveSession(false);
 
     try {
       const data = await getWellnessTips(stress, query);
       if (data && data.length > 0) {
         setTips(data.map(t => ({ ...t, completed: false })));
-        setIsLiveSession(true);
       } else {
         throw new Error("EMPTY_RESPONSE");
       }
     } catch (err: any) {
-      console.error("Live Wellness Error:", err.message);
-      if (err.message === 'API_KEY_MISSING') {
-        setErrorStatus('AUTH_ERROR');
-      } else {
-        setErrorStatus('CONNECTION_ERROR');
-      }
+      console.error("Wellness Service Feedback:", err.message);
+      setErrorStatus(err.message === 'API_KEY_MISSING' ? 'AUTH_ERROR' : 'CONNECTION_ERROR');
       const fallbackTips = getDynamicMockTips(query);
       setTips(fallbackTips.map(t => ({ ...t, completed: false })));
     } finally {
@@ -103,7 +95,7 @@ const WellnessCenter: React.FC = () => {
           <div>
             <h2 className="text-xl font-bold text-slate-800 tracking-tight">Wellness Center</h2>
             <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">
-              {isLiveSession ? 'Pure Gemini Intelligence' : 'Dynamic Preview Active'}
+              AI Support Dashboard
             </p>
           </div>
         </div>
@@ -152,7 +144,7 @@ const WellnessCenter: React.FC = () => {
       <form onSubmit={handleSearch} className="relative">
         <input 
           type="text" 
-          placeholder="Problem for AI analysis (try 'exams' or 'sleep')..."
+          placeholder="What's on your mind? (exams, sleep...)"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="w-full bg-white border border-slate-100 p-5 pl-14 rounded-[2rem] outline-none focus:ring-4 focus:ring-rose-50 transition-all shadow-sm font-medium"
@@ -183,40 +175,9 @@ const WellnessCenter: React.FC = () => {
             AI Strategy Feed
             {loading && <Loader2 size={12} className="animate-spin text-indigo-500" />}
           </h3>
-          {isLiveSession ? (
-            <div className="flex items-center gap-1 text-emerald-600 text-[10px] font-black bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100">
-              <Zap size={10} fill="currentColor" /> <span>STRICT LIVE MODE</span>
-            </div>
-          ) : !loading && errorStatus && (
-            <div className="flex items-center gap-1 text-amber-500 text-[10px] font-black bg-amber-50 px-2 py-1 rounded-lg border border-amber-100">
-              <Lightbulb size={10} /> <span>SMART FALLBACK ACTIVE</span>
-            </div>
-          )}
         </div>
         
         <div className="grid grid-cols-1 gap-4">
-          {errorStatus && !loading && (
-             <div className="bg-rose-50/50 border border-rose-100 p-5 rounded-3xl flex items-start gap-4 animate-in fade-in duration-500">
-               <div className="p-3 bg-white rounded-2xl text-rose-500 shadow-sm border border-rose-50">
-                  <AlertTriangle size={20} />
-               </div>
-               <div className="flex-1">
-                  <h4 className="text-xs font-black text-rose-900 uppercase tracking-tight">Live AI Connection Limited</h4>
-                  <p className="text-[10px] text-rose-700 font-bold leading-relaxed mt-1">
-                    {errorStatus === 'AUTH_ERROR' 
-                      ? 'Environment API_KEY is missing. Providing relevant study strategies from our local expert database.' 
-                      : 'Live connection failed. Using smart fallback tips based on your search.'}
-                  </p>
-                  <button 
-                    onClick={() => fetchTips(searchQuery || undefined)}
-                    className="mt-3 text-[10px] font-black text-white bg-rose-500 px-4 py-2 rounded-xl hover:bg-rose-600 transition-colors flex items-center gap-2 shadow-sm uppercase"
-                  >
-                    <RefreshCw size={12} /> Retry Live Link
-                  </button>
-               </div>
-             </div>
-          )}
-
           {loading ? (
              Array(3).fill(0).map((_, i) => <div key={i} className="bg-white p-6 rounded-3xl border border-slate-100 h-32 animate-pulse" />)
           ) : tips.length > 0 ? (
@@ -227,7 +188,7 @@ const WellnessCenter: React.FC = () => {
                   tip.completed 
                     ? 'bg-slate-50 border-emerald-100 opacity-75' 
                     : 'bg-white border-slate-100 shadow-sm'
-                } ${!isLiveSession && !tip.completed ? 'border-amber-50/50 shadow-amber-50/20' : ''}`}
+                }`}
               >
                 <div className={`p-4 h-fit rounded-2xl shrink-0 transition-all ${
                   tip.completed 
@@ -241,7 +202,6 @@ const WellnessCenter: React.FC = () => {
                   <div className="flex justify-between items-start">
                     <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1.5">
                       {tip.category} Insight
-                      {!isLiveSession && <Lightbulb size={10} className="text-amber-400" />}
                     </h4>
                     {tip.completed && <CheckCircle2 size={16} className="text-emerald-500 animate-in zoom-in" />}
                   </div>
@@ -259,34 +219,24 @@ const WellnessCenter: React.FC = () => {
                       {tip.action}
                     </span>
                     
-                    <div className="flex items-center gap-2">
-                      <button className={`text-[9px] font-black px-2 py-1 rounded-lg border transition-all ${
-                        isLiveSession 
-                          ? 'bg-white text-slate-400 border-slate-100' 
-                          : 'bg-amber-100 text-amber-600 border-amber-200'
-                      }`}>
-                        {isLiveSession ? 'AI Task' : 'Dynamic Local'}
-                      </button>
-                      
-                      <button 
-                        onClick={() => toggleTipCompletion(i)}
-                        className={`p-1.5 rounded-xl transition-all active:scale-90 ${
-                          tip.completed 
-                            ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-100' 
-                            : 'bg-white text-slate-300 border border-slate-100 hover:text-emerald-500'
-                        }`}
-                      >
-                        {tip.completed ? <CheckCircle2 size={14} /> : <Circle size={14} />}
-                      </button>
-                    </div>
+                    <button 
+                      onClick={() => toggleTipCompletion(i)}
+                      className={`p-1.5 rounded-xl transition-all active:scale-90 ${
+                        tip.completed 
+                          ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-100' 
+                          : 'bg-white text-slate-300 border border-slate-100 hover:text-emerald-500'
+                      }`}
+                    >
+                      {tip.completed ? <CheckCircle2 size={14} /> : <Circle size={14} />}
+                    </button>
                   </div>
                 </div>
               </div>
             ))
           ) : (
             <div className="text-center py-16 bg-white border border-dashed border-slate-200 rounded-[2.5rem] flex flex-col items-center gap-3">
-              <AlertTriangle className="text-slate-200" size={32} />
-              <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Awaiting Active Connection</p>
+              <Sparkles className="text-slate-200" size={32} />
+              <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Strategies will appear here</p>
             </div>
           )}
         </div>

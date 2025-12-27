@@ -204,18 +204,6 @@ const App: React.FC = () => {
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-50 text-slate-900 overflow-hidden">
-      {!hasApiKey && (
-        <div className="bg-rose-600 text-white px-6 py-2 flex items-center justify-between text-[10px] font-black uppercase tracking-widest animate-in slide-in-from-top duration-500 z-[100]">
-          <div className="flex items-center gap-2">
-            <ShieldAlert size={14} />
-            <span>Gemini AI is offline</span>
-          </div>
-          <button onClick={handleOpenKeySelector} className="bg-white text-rose-600 px-3 py-1 rounded-lg flex items-center gap-1">
-            <Zap size={10} fill="currentColor" /> Connect
-          </button>
-        </div>
-      )}
-
       {/* Top Header */}
       <header className="bg-white/80 backdrop-blur-md px-6 pt-10 pb-4 border-b border-slate-100 flex justify-between items-center sticky top-0 z-10">
         <div className="flex items-center gap-2">
@@ -225,7 +213,7 @@ const App: React.FC = () => {
               PreppySphere
             </h1>
             <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1">
-              By Gemini AI {hasApiKey && <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse inline-block"></span>}
+              By Gemini AI
             </p>
           </div>
         </div>
