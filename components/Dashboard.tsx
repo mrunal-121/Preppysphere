@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   BookOpen, 
   AlertCircle, 
@@ -20,9 +20,14 @@ import {
   Megaphone,
   Calendar,
   Sparkles,
-  Clock
+  Clock,
+  Zap,
+  RefreshCw,
+  Power,
+  PowerOff
 } from 'lucide-react';
-import { ViewState, UserProfile, TodoTask } from '../types';
+import { ViewState, UserProfile, TodoTask, SmartNotification } from '../types';
+import { getSmartPulse } from '../services/geminiService';
 
 interface DashboardProps {
   setActiveView: (view: ViewState) => void;
@@ -32,6 +37,7 @@ interface DashboardProps {
   setTasks: (tasks: TodoTask[]) => void;
   formalityTasks: TodoTask[];
   setFormalityTasks: (tasks: TodoTask[]) => void;
+  onAddNotifications: (notes: SmartNotification[]) => void;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ 
@@ -41,19 +47,58 @@ const Dashboard: React.FC<DashboardProps> = ({
   tasks, 
   setTasks,
   formalityTasks,
-  setFormalityTasks 
+  setFormalityTasks,
+  onAddNotifications
 }) => {
   const [showTodoList, setShowTodoList] = useState(false);
   const [showFormalitiesList, setShowFormalitiesList] = useState(false);
   const [newTaskText, setNewTaskText] = useState('');
   const [newFormalityText, setNewFormalityText] = useState('');
   const [newFormalityDeadline, setNewFormalityDeadline] = useState('');
+  const [pulseLoading, setPulseLoading] = useState(false);
+  const [isPulseActive, setIsPulseActive] = useState(() => {
+    const saved = localStorage.getItem('preppysphere_pulse_active');
+    return saved !== null ? JSON.parse(saved) : true;
+  });
 
   const completedCount = tasks.filter(t => t.completed).length;
   const completionPercentage = tasks.length > 0 ? Math.round((completedCount / tasks.length) * 100) : 0;
 
   const formalityCompletedCount = formalityTasks.filter(t => t.completed).length;
   const formalityPercentage = formalityTasks.length > 0 ? Math.round((formalityCompletedCount / formalityTasks.length) * 100) : 0;
+
+  // AI Pulse Trigger
+  const triggerPulse = async () => {
+    if (!isPulseActive || pulseLoading) return;
+    setPulseLoading(true);
+    try {
+      const notes = await getSmartPulse({
+        tasks,
+        formalities: formalityTasks,
+        stressLevel: 5, // Mock default or pull from state if global
+        streak: userProfile.streak
+      });
+      if (notes.length > 0) {
+        onAddNotifications(notes);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setPulseLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isPulseActive) {
+      triggerPulse();
+    }
+  }, []);
+
+  const togglePulseState = () => {
+    const newState = !isPulseActive;
+    setIsPulseActive(newState);
+    localStorage.setItem('preppysphere_pulse_active', JSON.stringify(newState));
+  };
 
   const toggleTask = (id: string) => {
     setTasks(tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
@@ -109,6 +154,60 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-10">
+      {/* Smart Pulse Banner */}
+      <section className="animate-in slide-in-from-top-4 duration-700">
+        <div className={`p-1 rounded-[2rem] transition-all duration-500 shadow-xl ${
+          isPulseActive 
+            ? 'bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 shadow-blue-100' 
+            : 'bg-slate-200 shadow-slate-100'
+        } ${pulseLoading ? 'animate-pulse' : ''}`}>
+          <div className="bg-white/90 backdrop-blur-md rounded-[1.9rem] p-5 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`p-2 rounded-2xl shadow-lg transition-all duration-500 ${
+                isPulseActive 
+                  ? 'bg-indigo-600 text-white animate-bounce duration-[2000ms]' 
+                  : 'bg-slate-400 text-slate-100'
+              }`}>
+                {isPulseActive ? <Zap size={20} /> : <PowerOff size={20} />}
+              </div>
+              <div>
+                <h3 className={`text-sm font-black uppercase tracking-tighter transition-colors ${
+                  isPulseActive ? 'text-slate-800' : 'text-slate-400'
+                }`}>
+                  Gemini Pulse
+                </h3>
+                <p className="text-[10px] text-slate-400 font-bold">
+                  {pulseLoading ? 'Analyzing patterns...' : isPulseActive ? 'Smart Insights are active' : 'AI Analysis Deactivated'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {isPulseActive && (
+                <button 
+                  onClick={triggerPulse}
+                  disabled={pulseLoading}
+                  className="p-3 bg-slate-50 text-slate-400 rounded-2xl hover:text-indigo-600 hover:bg-white transition-all active:rotate-180 duration-500"
+                  title="Manual Refresh"
+                >
+                  <RefreshCw size={18} className={pulseLoading ? 'animate-spin' : ''} />
+                </button>
+              )}
+              <button 
+                onClick={togglePulseState}
+                className={`p-3 rounded-2xl transition-all shadow-sm ${
+                  isPulseActive 
+                    ? 'bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white' 
+                    : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white'
+                }`}
+                title={isPulseActive ? "Deactivate Pulse" : "Reactivate Pulse"}
+              >
+                {isPulseActive ? <Power size={18} /> : <Power size={18} />}
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Welcome Section */}
       <section>
         <div className="bg-indigo-600 rounded-3xl p-6 text-white shadow-xl shadow-indigo-100 relative overflow-hidden">
@@ -134,7 +233,6 @@ const Dashboard: React.FC<DashboardProps> = ({
 
       {/* Quick Stats Grid */}
       <section className="grid grid-cols-3 gap-3">
-        {/* Goal Completion Card */}
         <div 
           onClick={handleToggleGoals}
           className={`bg-white p-3 rounded-2xl border transition-all cursor-pointer relative overflow-hidden ${
@@ -154,7 +252,6 @@ const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
 
-        {/* Campus Task Card */}
         <div 
           onClick={handleToggleFormalities}
           className={`bg-white p-3 rounded-2xl border transition-all cursor-pointer relative overflow-hidden ${
@@ -174,7 +271,6 @@ const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
 
-        {/* Daily Streak Card */}
         <div 
           className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm hover:border-slate-200 transition-all cursor-default relative overflow-hidden"
         >
@@ -190,7 +286,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </section>
 
-      {/* Interactive To-Do List (Goals) */}
+      {/* Goal List Section */}
       {showTodoList && (
         <section className="animate-in slide-in-from-top-4 duration-300">
           <div className="bg-white rounded-[2.5rem] border border-indigo-100 shadow-xl overflow-hidden">
@@ -256,7 +352,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         </section>
       )}
 
-      {/* Interactive To-Do List (Campus Tasks) */}
+      {/* Campus Task Section */}
       {showFormalitiesList && (
         <section className="animate-in slide-in-from-top-4 duration-300">
           <div className="bg-white rounded-[2.5rem] border border-blue-100 shadow-xl overflow-hidden">
@@ -389,7 +485,6 @@ const Dashboard: React.FC<DashboardProps> = ({
             <button className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">See All</button>
          </div>
          <div className="space-y-3">
-            {/* Maintenance Update */}
             <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm flex gap-4 hover:border-indigo-100 transition-colors">
                <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
                   <Wrench size={18} />
@@ -404,7 +499,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                </div>
             </div>
 
-            {/* Event Announcement */}
             <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm flex gap-4 hover:border-purple-100 transition-colors">
                <div className="w-10 h-10 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
                   <Calendar size={18} />
@@ -419,7 +513,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                </div>
             </div>
 
-            {/* AI Wellness Tip */}
             <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-3xl p-5 border border-blue-100 shadow-sm flex gap-4">
                <div className="w-10 h-10 rounded-2xl bg-white text-blue-600 flex items-center justify-center shrink-0 shadow-sm">
                   <Sparkles size={18} />

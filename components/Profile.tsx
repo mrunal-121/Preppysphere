@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { User, ArrowLeft, Save, CheckCircle, GraduationCap, MapPin, Building2, School, AtSign, Info, Sparkles, LogOut } from 'lucide-react';
+import { User, ArrowLeft, Save, CheckCircle, GraduationCap, MapPin, Building2, School, AtSign, Info, Sparkles, LogOut, ShieldCheck, RefreshCw } from 'lucide-react';
 import { UserProfile } from '../types';
 
 interface ProfileProps {
@@ -16,6 +16,7 @@ const Profile: React.FC<ProfileProps> = ({ profile, onSave, onLogout, onBack }) 
   const [campus, setCampus] = useState(profile.collegeCampus || '');
   const [department, setDepartment] = useState(profile.department || '');
   const [grade, setGrade] = useState(profile.grade || '');
+  const [role, setRole] = useState(profile.role || 'student');
   const [saved, setSaved] = useState(false);
 
   const handleSave = () => {
@@ -26,6 +27,7 @@ const Profile: React.FC<ProfileProps> = ({ profile, onSave, onLogout, onBack }) 
       collegeCampus: campus, 
       department, 
       grade,
+      role
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -39,15 +41,33 @@ const Profile: React.FC<ProfileProps> = ({ profile, onSave, onLogout, onBack }) 
           <ArrowLeft size={20} className="text-slate-600" />
         </button>
         <div>
-          <h2 className="text-xl font-bold text-slate-800">Student Identity</h2>
-          <p className="text-xs text-slate-400 font-medium">Your academic profile in the sphere</p>
+          <h2 className="text-xl font-bold text-slate-800">Identity Dashboard</h2>
+          <p className="text-xs text-slate-400 font-medium">Manage your roles and data</p>
         </div>
+      </div>
+
+      {/* Role Toggle for MVP */}
+      <div className="bg-indigo-50 border border-indigo-100 p-6 rounded-[2.5rem] flex flex-col items-center gap-4">
+         <div className="flex items-center gap-3">
+            <div className={`p-3 rounded-2xl ${role === 'faculty' ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600'}`}>
+               {role === 'faculty' ? <ShieldCheck size={24} /> : <GraduationCap size={24} />}
+            </div>
+            <div>
+               <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Active Identity</p>
+               <h3 className="font-bold text-slate-800 capitalize">{role} Account</h3>
+            </div>
+         </div>
+         <button 
+           onClick={() => setRole(role === 'student' ? 'faculty' : 'student')}
+           className="px-6 py-3 bg-white border border-indigo-200 text-indigo-600 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-sm active:scale-95 transition-all"
+         >
+            <RefreshCw size={14} /> Switch to {role === 'student' ? 'Faculty' : 'Student'} Mode
+         </button>
       </div>
 
       {/* Avatar Section */}
       <div className="flex flex-col items-center py-4">
         <div className="relative">
-          {/* Decorative Rings */}
           <div className="absolute inset-0 bg-indigo-500/10 rounded-full blur-2xl animate-pulse"></div>
           <div className="absolute -inset-2 border-2 border-dashed border-indigo-200 rounded-full animate-[spin_10s_linear_infinite]"></div>
           
@@ -181,15 +201,6 @@ const Profile: React.FC<ProfileProps> = ({ profile, onSave, onLogout, onBack }) 
           <LogOut size={18} />
           Sign Out of Sphere
         </button>
-
-        <div className="p-6 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-[2.5rem] border border-white flex gap-4 items-center">
-          <div className="p-3 bg-white rounded-2xl shadow-sm text-indigo-500">
-            <Sparkles size={20} />
-          </div>
-          <p className="text-[11px] text-indigo-600 font-bold leading-relaxed">
-            Your identity data helps Gemini AI tailor study plans and prioritize campus reports based on your department and year.
-          </p>
-        </div>
       </div>
     </div>
   );

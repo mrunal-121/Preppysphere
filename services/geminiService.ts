@@ -1,8 +1,7 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { StudyPlan, IssueCategory, WellnessTip } from "../types";
+import { StudyPlan, IssueCategory, WellnessTip, SmartNotification } from "../types";
 
-// The API key is injected via vite.config.ts from process.env.API_KEY
 const getApiKey = () => {
   return process.env.API_KEY || '';
 };
@@ -15,6 +14,68 @@ const handleApiError = (error: any): string => {
   if (message.includes('403')) return "PERMISSION_DENIED";
   if (!navigator.onLine) return "OFFLINE";
   return "UNKNOWN_ERROR";
+};
+
+export const getSmartPulse = async (userData: {
+  tasks: any[],
+  formalities: any[],
+  stressLevel: number,
+  streak: number
+}): Promise<SmartNotification[]> => {
+  const apiKey = getApiKey();
+  if (!apiKey) throw new Error("API_KEY_MISSING");
+
+  const ai = new GoogleGenAI({ apiKey });
+  
+  try {
+    const prompt = `
+      Act as a proactive AI Student Mentor. Analyze the current student state:
+      - Goals Completed: ${userData.tasks.filter(t => t.completed).length}/${userData.tasks.length}
+      - Campus Deadlines: ${userData.formalities.length} total
+      - Stress Level: ${userData.stressLevel}/10
+      - Day Streak: ${userData.streak}
+      
+      Generate 2-3 "Smart Notifications" that are contextual. 
+      If stress is high (>7), focus on health. 
+      If goal completion is low (<30%), focus on productivity nudges. 
+      If there are formality deadlines, mention them.
+      Keep titles short and messages very punchy (max 15 words).
+    `;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              type: { type: Type.STRING, enum: ['deadline', 'productivity', 'stress', 'motivation'] },
+              title: { type: Type.STRING },
+              message: { type: Type.STRING },
+              priority: { type: Type.STRING, enum: ['high', 'medium', 'low'] },
+              actionLabel: { type: Type.STRING },
+              targetView: { type: Type.STRING },
+            },
+            required: ["type", "title", "message", "priority"],
+          },
+        },
+      },
+    });
+    
+    const raw = JSON.parse(response.text || '[]');
+    return raw.map((n: any, i: number) => ({
+      ...n,
+      id: `sn-${Date.now()}-${i}`,
+      timestamp: Date.now(),
+      isRead: false
+    }));
+  } catch (e) {
+    console.error("Pulse error:", e);
+    return []; // Return empty on error to avoid breaking UI
+  }
 };
 
 export const getWellnessTips = async (stressLevel: number, query?: string): Promise<WellnessTip[]> => {
@@ -124,7 +185,6 @@ export const solveDoubt = async (doubt: string): Promise<string> => {
         systemInstruction: "You are a clear and concise AI Tutor. Explain concepts in very simple language suitable for a tired student. Avoid unnecessary theory, complex formulas, and all mathematical symbols. Do not use bold (**) or headers (#). Provide only short, practical examples from daily life. Keep answers brief and easy to read. Use plain text only."
       },
     });
-    // Final safety strip of any leftover symbols
     return (response.text || "I'm sorry, I couldn't process that. Try rephrasing?").replace(/[#*\\$]/g, '');
   } catch (e) {
     throw new Error(handleApiError(e));

@@ -27,7 +27,7 @@ export interface CommunityIssue {
   title: string;
   description: string;
   category: IssueCategory;
-  routing: string; // The club or authority it was routed to
+  routing: string;
   status: 'pending' | 'resolved' | 'in-progress';
   timestamp: number;
 }
@@ -41,6 +41,7 @@ export interface UserProfile {
   grade: string;
   streak: number;
   lastActiveDate?: string;
+  role?: 'student' | 'faculty';
 }
 
 export interface TodoTask {
@@ -50,4 +51,24 @@ export interface TodoTask {
   deadline?: string;
 }
 
-export type ViewState = 'home' | 'study' | 'issues' | 'wellness' | 'chat' | 'profile' | 'features';
+export interface SmartNotification {
+  id: string;
+  type: 'deadline' | 'productivity' | 'stress' | 'motivation';
+  title: string;
+  message: string;
+  priority: 'high' | 'medium' | 'low';
+  timestamp: number;
+  actionLabel?: string;
+  targetView?: ViewState;
+  isRead: boolean;
+}
+
+export type ViewState = 'home' | 'study' | 'issues' | 'wellness' | 'chat' | 'profile' | 'features' | 'faculty';
+
+export interface FacultyAnalytics {
+  activeStudents: number;
+  averageStreak: number;
+  averageProgress: number;
+  hotDoubts: { topic: string; frequency: number; trend: 'up' | 'down' }[];
+  issueSummary: Record<IssueCategory, number>;
+}
