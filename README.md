@@ -99,4 +99,4 @@ PreppySphere follows a **Glassmorphic Android** design language:
 
 ---
 
-**Developed with ❤️ for Students, by Gemini AI.**
+
